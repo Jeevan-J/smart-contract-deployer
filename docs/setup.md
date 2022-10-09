@@ -1,3 +1,0 @@
-- `poetry install`
-- add wallet accounts using `poetry run brownie accounts new <id/name> ` with your private key
-- 
