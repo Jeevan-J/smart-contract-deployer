@@ -12,7 +12,7 @@ This project is focused on enabling Web3 users to deploy their smart contracts u
 - [x] Adding new networks needs to be implemented
 - [x] API to deploy
 - [x] Test sample contract deployment on `polygon-test` and `goerli` networks
-- [ ] Add documentation on local setup
+- [X] Add documentation on local setup
 - [ ] Build docker image for one-click usage
 - [ ] Add support for multi file smart contracts
 - [ ] Add a basic UI to configure and deploy smart contracts
