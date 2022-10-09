@@ -1,6 +1,9 @@
-FROM python:3.8.10-slim-buster
+# Dockerfile
+## Build venv
+FROM python:3.8.10-slim-buster AS venv
 
 RUN apt-get update && apt-get install -y \
+    curl \
     build-essential \
     libpq-dev \
     python3-dev \
@@ -10,15 +13,29 @@ RUN apt-get update && apt-get install -y \
     python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
+ARG POETRY_VERSION=1.1.4
+RUN curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3
+ENV PATH /root/.poetry/bin:$PATH
 RUN mkdir /deployer
 
+WORKDIR /deployer
+COPY pyproject.toml ./
+RUN python3 -m venv --copies /deployer/venv
+
+
+ARG POETRY_OPTIONS
+RUN . /deployer/venv/bin/activate \
+    && poetry install $POETRY_OPTIONS
+
+
+## Beginning of runtime image
+FROM python:3.8.10-slim-buster as prod
+RUN mkdir /deployer
+
+COPY --from=venv /deployer/venv /deployer/venv/
+ENV PATH /deployer/venv/bin:$PATH
+
 COPY . /deployer
-
-RUN ls -lah /deployer
-
-RUN python3 -m pip install --upgrade pip
-RUN python3 -m pip install -r /deployer/requirements.txt
-
 WORKDIR /deployer/app
 
 ENV ENABLE_CORS=False
