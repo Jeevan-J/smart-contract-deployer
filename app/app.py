@@ -4,7 +4,6 @@ API Server for Solidity Smart Contract Deployment using Brownie
 
 import os
 from typing import Optional
-from wsgiref import validate
 
 from fastapi import FastAPI, APIRouter, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -32,6 +31,7 @@ if os.getenv("ENABLE_CORS", "False") == "True":
 
 # CONSTANTS
 CONTRACT_TEMPLATE_FOLDER = "../templates"
+CONTRACT_FOLDER = "../contracts"
 
 # APIs for managing the current account
 class ActiveAccount:
@@ -230,7 +230,7 @@ def get_templates_list():
     return {
         "status": "ok",
         "templates": [
-            template_name.split('.sol')[0]
+            template_name.split(".sol")[0]
             for template_name in os.listdir(CONTRACT_TEMPLATE_FOLDER)
             if template_name.endswith(".sol")
         ],
@@ -261,7 +261,7 @@ def get_template_code(template_name: str):
             }
         return {"status": "error", "message": f'template "{template_name}" not found'}
     except ValidationError as exc:
-        return {"status":"error", "message":f"{exc}"}
+        return {"status": "error", "message": f"{exc}"}
 
 
 @template_router.post("/add")
@@ -290,7 +290,7 @@ def add_template(template_name: str, template_bytes: bytes = File(...)):
             template_file.write(template_bytes)
         return {"status": "ok", "template_name": template_name}
     except ValidationError as exc:
-        return {"status":"error", "message":f"{exc}"}
+        return {"status": "error", "message": f"{exc}"}
 
 
 @template_router.delete("/delete")
@@ -311,14 +311,17 @@ def delete_template(template_name: str):
         validate_filename(template_name)
         template_path = os.path.join(CONTRACT_TEMPLATE_FOLDER, template_name)
         if not os.path.exists(template_path):
-            return {"status": "error", "message": f'template "{template_name}" not found'}
+            return {
+                "status": "error",
+                "message": f'template "{template_name}" not found',
+            }
         try:
             os.remove(template_path)
             return {"status": "ok", "template_name": template_name}
         except Exception as exc:
             return {"status": "error", "message": str(exc)}
     except ValidationError as exc:
-        return {"status":"error", "message":f"{exc}"}
+        return {"status": "error", "message": f"{exc}"}
 
 
 app.include_router(template_router)
@@ -349,14 +352,16 @@ def deploy_template_contract(
     try:
         if not template_name.endswith(".sol"):
             template_name += ".sol"
-        if not contract_name.endswith(".sol"):
-            contract_name += ".sol"
+        contract_path = contract_name + ".sol"
         validate_filename(template_name)
-        validate_filename(contract_name)
-        template_path = os.path.join("../templates/",template_name)
-        contract_path = os.path.join("../contracts/",contract_name)
+        validate_filename(contract_path)
+        template_path = os.path.join("../templates/", template_name)
+        contract_path = os.path.join("../contracts/", contract_path)
         if not os.path.exists(template_path):
-            return {"status":"error","message":f"{template_name} template is not available!"}
+            return {
+                "status": "error",
+                "message": f"{template_name} template is not available!",
+            }
         with open(template_path, "r", encoding="utf-8") as template:
             template_code = template.read()
             for key, value in template_params.items():
@@ -388,28 +393,40 @@ def deploy_template_contract(
             return contract_json
         except Exception as exc:
             contract_proj.close()
+            return {"status": "error","message": f"{str(exc)}"}
     except KeyError as exc:
         return {
             "status": "error",
             "message": f"Please make sure that the contract name and token name are same! KeyError: {str(exc)}",
         }
     except ValidationError as exc:
-        return {"status":"error", "message":f"{exc}"}
+        return {"status": "error", "message": f"{exc}"}
     except Exception as exc:
         return {"status": "error", "message": str(exc)}
 
+
 app.include_router(deployment_router)
 
-# API for Interact of Smart Contracts
+# API for Smart Contracts
 
-interact_router = APIRouter(prefix="/interact", tags=["Interact"])
+contract_router = APIRouter(prefix="/contracts", tags=["Contract"])
 
-@interact_router.post("/contract")
+
+@contract_router.get("/")
+def get_contracts():
+    """
+    Returns the contracts
+
+    Returns:
+        list: contracts list
+    """
+    contract_proj = project.load("../")
+    return {"status": "ok", "contracts": list(contract_proj.keys())}
+
+
+@contract_router.post("/interact")
 def interact_contract(
-    contract_name: str,
-    contract_address: str,
-    contract_method: str,
-    method_args: tuple
+    contract_name: str, contract_address: str, contract_method: str, method_args: tuple
 ):
     """
     Interact with a Smart Contract using pre-defined ERC Templates
@@ -424,26 +441,32 @@ def interact_contract(
         json: Returns a JSON with status and transaction information
     """
     try:
-        contract_proj = project.load('../')
+        contract_proj = project.load("../")
         contract_container = contract_proj[contract_name]
         deployed_contract = contract_container.at(contract_address)
-        func = deployed_contract.get_method_object(deployed_contract.signatures[contract_method])
-        func_tx = func.transact(*method_args, {'from': ACTIVEACCOUNT.account})
+        func = deployed_contract.get_method_object(
+            deployed_contract.signatures[contract_method]
+        )
+        func_tx = func.transact(*method_args, {"from": ACTIVEACCOUNT.account})
         contract_proj.close()
-        return {"status": "success", "tx_hash": func_tx.txid, "tx_status": func_tx.status}
+        return {
+            "status": "success",
+            "tx_hash": func_tx.txid,
+            "tx_status": func_tx.status,
+        }
     except Exception as exc:
         return {"status": "error", "message": str(exc)}
 
-app.include_router(interact_router)
+
+app.include_router(contract_router)
 
 
-# API for Interact of Smart Contracts
+# API for Brownie Package Manager
 pm_router = APIRouter(prefix="/pm", tags=["Package Manager"])
 
+
 @pm_router.post("/delete")
-def pm_delete(
-    package_name: str
-):
+def pm_delete(package_name: str):
     """
     Delete brownie packages
 
@@ -455,14 +478,13 @@ def pm_delete(
     """
     try:
         package_manager._delete(package_name)
-        return {"status": "success", "message": f"{package_name} deleted successfully" }
+        return {"status": "success", "message": f"{package_name} deleted successfully"}
     except Exception as exc:
         return {"status": "error", "message": str(exc)}
 
+
 @pm_router.post("/install")
-def pm_install(
-    package_name: str
-):
+def pm_install(package_name: str):
     """
     Install brownie packages
 
@@ -474,7 +496,10 @@ def pm_install(
     """
     try:
         package_manager._install(package_name)
-        return {"status": "success", "message": f"{package_name} installed successfully" }
+        return {
+            "status": "success",
+            "message": f"{package_name} installed successfully",
+        }
     except Exception as exc:
         return {"status": "error", "message": str(exc)}
 
