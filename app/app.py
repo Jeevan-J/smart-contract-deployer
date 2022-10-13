@@ -13,6 +13,7 @@ from pathvalidate import validate_filename, ValidationError
 
 import brownie
 from brownie import accounts, project, network
+from brownie._cli import pm as package_manager
 
 load_dotenv("../.env")
 
@@ -398,3 +399,83 @@ def deploy_template_contract(
         return {"status": "error", "message": str(exc)}
 
 app.include_router(deployment_router)
+
+# API for Interact of Smart Contracts
+
+interact_router = APIRouter(prefix="/interact", tags=["Interact"])
+
+@interact_router.post("/contract")
+def interact_contract(
+    contract_name: str,
+    contract_address: str,
+    contract_method: str,
+    method_args: tuple
+):
+    """
+    Interact with a Smart Contract using pre-defined ERC Templates
+
+    Args:
+        contract_name (str): contract name (same as TOKEN_NAME)
+        contract_address (dict): deployed contract address
+        contract_method (str): contract method
+        method_args (tuple): contract method arguments
+
+    Returns:
+        json: Returns a JSON with status and transaction information
+    """
+    try:
+        contract_proj = project.load('../')
+        contract_container = contract_proj[contract_name]
+        deployed_contract = contract_container.at(contract_address)
+        func = deployed_contract.get_method_object(deployed_contract.signatures[contract_method])
+        func_tx = func.transact(*method_args, {'from': ACTIVEACCOUNT.account})
+        contract_proj.close()
+        return {"status": "success", "tx_hash": func_tx.txid, "tx_status": func_tx.status}
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}
+
+app.include_router(interact_router)
+
+
+# API for Interact of Smart Contracts
+pm_router = APIRouter(prefix="/pm", tags=["Package Manager"])
+
+@pm_router.post("/delete")
+def pm_delete(
+    package_name: str
+):
+    """
+    Delete brownie packages
+
+    Args:
+        package_name (str): Package Name
+
+    Returns:
+        json: Returns a JSON with status
+    """
+    try:
+        package_manager._delete(package_name)
+        return {"status": "success", "message": f"{package_name} deleted successfully" }
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}
+
+@pm_router.post("/install")
+def pm_install(
+    package_name: str
+):
+    """
+    Install brownie packages
+
+    Args:
+        package_name (str): Package Name
+
+    Returns:
+        json: Returns a JSON with status
+    """
+    try:
+        package_manager._install(package_name)
+        return {"status": "success", "message": f"{package_name} installed successfully" }
+    except Exception as exc:
+        return {"status": "error", "message": str(exc)}
+
+app.include_router(pm_router)
