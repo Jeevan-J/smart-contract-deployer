@@ -23,7 +23,7 @@ COPY pyproject.toml ./
 RUN python3 -m venv --copies /deployer/venv
 
 
-ARG POETRY_OPTIONS
+ARG POETRY_OPTIONS=""
 RUN . /deployer/venv/bin/activate \
     && poetry install $POETRY_OPTIONS
 
