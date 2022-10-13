@@ -10,6 +10,7 @@ eth-brownie = "^1.18.1"
 fastapi = "^0.75.1"
 uvicorn = "^0.17.6"
 python-multipart = "^0.0.5"
+pathvalidate = "^2.5.2"
 
 [tool.poetry.dev-dependencies]
 

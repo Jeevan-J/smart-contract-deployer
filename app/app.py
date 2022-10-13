@@ -4,10 +4,12 @@ API Server for Solidity Smart Contract Deployment using Brownie
 
 import os
 from typing import Optional
+from wsgiref import validate
 
 from fastapi import FastAPI, APIRouter, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+from pathvalidate import validate_filename, ValidationError
 
 import brownie
 from brownie import accounts, project, network
@@ -16,8 +18,8 @@ load_dotenv("../.env")
 
 app = FastAPI()
 
-if os.getenv("ENABLE_CORS","False") == "True":
-    origins = os.getenv("CORS_ORIGINS").split(',')
+if os.getenv("ENABLE_CORS", "False") == "True":
+    origins = os.getenv("CORS_ORIGINS").split(",")
 
     app.add_middleware(
         CORSMiddleware,
@@ -227,7 +229,7 @@ def get_templates_list():
     return {
         "status": "ok",
         "templates": [
-            template_name
+            template_name.split('.sol')[0]
             for template_name in os.listdir(CONTRACT_TEMPLATE_FOLDER)
             if template_name.endswith(".sol")
         ],
@@ -247,14 +249,18 @@ def get_template_code(template_name: str):
     """
     if not template_name.endswith(".sol"):
         template_name += ".sol"
-    template_path = os.path.join(CONTRACT_TEMPLATE_FOLDER, template_name)
-    if os.path.exists(template_path):
-        return {
-            "status": "ok",
-            "template_name": template_name,
-            "template_code": open(template_path, "r", encoding="utf-8").read(),
-        }
-    return {"status": "error", "message": f'template "{template_name}" not found'}
+    try:
+        validate_filename(template_name)
+        template_path = os.path.join(CONTRACT_TEMPLATE_FOLDER, template_name)
+        if os.path.exists(template_path):
+            return {
+                "status": "ok",
+                "template_name": template_name,
+                "template_code": open(template_path, "r", encoding="utf-8").read(),
+            }
+        return {"status": "error", "message": f'template "{template_name}" not found'}
+    except ValidationError as exc:
+        return {"status":"error", "message":f"{exc}"}
 
 
 @template_router.post("/add")
@@ -271,15 +277,19 @@ def add_template(template_name: str, template_bytes: bytes = File(...)):
     """
     if not template_name.endswith(".sol"):
         template_name += ".sol"
-    template_path = os.path.join(CONTRACT_TEMPLATE_FOLDER, template_name)
-    if os.path.exists(template_path):
-        return {
-            "status": "error",
-            "message": f'template "{template_name}" already exists',
-        }
-    with open(template_path, "wb") as template_file:
-        template_file.write(template_bytes)
-    return {"status": "ok", "template_name": template_name}
+    try:
+        validate_filename(template_name)
+        template_path = os.path.join(CONTRACT_TEMPLATE_FOLDER, template_name)
+        if os.path.exists(template_path):
+            return {
+                "status": "error",
+                "message": f'template "{template_name}" already exists',
+            }
+        with open(template_path, "wb") as template_file:
+            template_file.write(template_bytes)
+        return {"status": "ok", "template_name": template_name}
+    except ValidationError as exc:
+        return {"status":"error", "message":f"{exc}"}
 
 
 @template_router.delete("/delete")
@@ -296,14 +306,18 @@ def delete_template(template_name: str):
     """
     if not template_name.endswith(".sol"):
         template_name += ".sol"
-    template_path = os.path.join(CONTRACT_TEMPLATE_FOLDER, template_name)
-    if not os.path.exists(template_path):
-        return {"status": "error", "message": f'template "{template_name}" not found'}
     try:
-        os.remove(template_path)
-        return {"status": "ok", "template_name": template_name}
-    except Exception as exc:
-        return {"status": "error", "message": str(exc)}
+        validate_filename(template_name)
+        template_path = os.path.join(CONTRACT_TEMPLATE_FOLDER, template_name)
+        if not os.path.exists(template_path):
+            return {"status": "error", "message": f'template "{template_name}" not found'}
+        try:
+            os.remove(template_path)
+            return {"status": "ok", "template_name": template_name}
+        except Exception as exc:
+            return {"status": "error", "message": str(exc)}
+    except ValidationError as exc:
+        return {"status":"error", "message":f"{exc}"}
 
 
 app.include_router(template_router)
@@ -312,12 +326,13 @@ app.include_router(template_router)
 
 deployment_router = APIRouter(prefix="/deploy", tags=["Deployment"])
 
+
 @deployment_router.post("/template")
 def deploy_template_contract(
     template_name: str,
     template_params: dict,
     contract_name: str,
-    publish_source: bool = True
+    publish_source: bool = True,
 ):
     """
     Deploy a Smart Contract using pre-defined ERC Templates
@@ -331,20 +346,28 @@ def deploy_template_contract(
         json: Returns a JSON with status and deployed contract information
     """
     try:
-        with open(
-            "../templates/" + template_name + ".sol", "r", encoding="utf-8"
-        ) as template:
+        if not template_name.endswith(".sol"):
+            template_name += ".sol"
+        if not contract_name.endswith(".sol"):
+            contract_name += ".sol"
+        validate_filename(template_name)
+        validate_filename(contract_name)
+        template_path = os.path.join("../templates/",template_name)
+        contract_path = os.path.join("../contracts/",contract_name)
+        if not os.path.exists(template_path):
+            return {"status":"error","message":f"{template_name} template is not available!"}
+        with open(template_path, "r", encoding="utf-8") as template:
             template_code = template.read()
             for key, value in template_params.items():
-                template_code = template_code.replace("<"+key+">", value)
-            with open(
-                "../contracts/" + contract_name + ".sol", "w+", encoding="utf-8"
-            ) as contract_file:
+                template_code = template_code.replace("<" + key + ">", value)
+            with open(contract_path, "w+", encoding="utf-8") as contract_file:
                 contract_file.write(template_code)
-        contract_proj = project.load('../')
+        contract_proj = project.load("../")
         contract_container = contract_proj[contract_name]
         try:
-            deployed_contract = contract_container.deploy({'from': ACTIVEACCOUNT.account}, publish_source=publish_source)
+            deployed_contract = contract_container.deploy(
+                {"from": ACTIVEACCOUNT.account}, publish_source=publish_source
+            )
             contract_json = {
                 "data": {
                     "abi": contract_container.abi,
@@ -356,15 +379,21 @@ def deploy_template_contract(
                     "contract_params": template_params,
                     "contract_code": template_code,
                     "contract_address": deployed_contract.address,
-                    "deployer_address": ACTIVEACCOUNT.account.address
+                    "deployer_address": ACTIVEACCOUNT.account.address,
                 },
                 "status": "success",
             }
             contract_proj.close()
             return contract_json
         except Exception as exc:
-            print(exc)
             contract_proj.close()
+    except KeyError as exc:
+        return {
+            "status": "error",
+            "message": f"Please make sure that the contract name and token name are same! KeyError: {str(exc)}",
+        }
+    except ValidationError as exc:
+        return {"status":"error", "message":f"{exc}"}
     except Exception as exc:
         return {"status": "error", "message": str(exc)}
 
