@@ -165,13 +165,13 @@ def delete_account(account_name: str, account_pass: str):
     try:
         account = accounts.load(account_name, account_pass)
     except Exception as exc:
-        return HTTPException(
+        raise HTTPException(
             status_code=404,
             detail={
                 "status": "error",
                 "message": f'No account found locally with name "{account_name}". {str(exc)}',
             },
-        )
+        ) from exc
     accounts.remove(account)
 
 
@@ -192,7 +192,7 @@ def get_network_active():
     """
     if network.is_connected():
         return {"status": "ok", "network": network.show_active()}
-    return HTTPException(
+    raise HTTPException(
         status_code=404,
         detail={"status": "error", "message": "Not connected to any network"},
     )
@@ -262,7 +262,7 @@ def get_template_code(template_name: str):
                 "template_name": template_name,
                 "template_code": open(template_path, "r", encoding="utf-8").read(),
             }
-        return HTTPException(
+        raise HTTPException(
             status_code=404,
             detail={
                 "status": "error",
@@ -270,9 +270,9 @@ def get_template_code(template_name: str):
             },
         )
     except ValidationError as exc:
-        return HTTPException(
+        raise HTTPException(
             status_code=500, detail={"status": "error", "message": f"{exc}"}
-        )
+        ) from exc
 
 
 @template_router.post("/add")
@@ -293,7 +293,7 @@ def add_template(template_name: str, template_bytes: bytes = File(...)):
         validate_filename(template_name)
         template_path = os.path.join(CONTRACT_TEMPLATE_FOLDER, template_name)
         if os.path.exists(template_path):
-            return HTTPException(
+            raise HTTPException(
                 status_code=500,
                 detail={
                     "status": "error",
@@ -304,9 +304,9 @@ def add_template(template_name: str, template_bytes: bytes = File(...)):
             template_file.write(template_bytes)
         return {"status": "ok", "template_name": template_name}
     except ValidationError as exc:
-        return HTTPException(
+        raise HTTPException(
             status_code=500, detail={"status": "error", "message": f"{exc}"}
-        )
+        ) from exc
 
 
 @template_router.delete("/delete")
@@ -327,7 +327,7 @@ def delete_template(template_name: str):
         validate_filename(template_name)
         template_path = os.path.join(CONTRACT_TEMPLATE_FOLDER, template_name)
         if not os.path.exists(template_path):
-            return HTTPException(
+            raise HTTPException(
                 status_code=500,
                 detail={
                     "status": "error",
@@ -338,13 +338,13 @@ def delete_template(template_name: str):
             os.remove(template_path)
             return {"status": "ok", "template_name": template_name}
         except Exception as exc:
-            return HTTPException(
+            raise HTTPException(
                 status_code=500, detail={"status": "error", "message": str(exc)}
-            )
+            ) from exc
     except ValidationError as exc:
-        return HTTPException(
+        raise HTTPException(
             status_code=500, detail={"status": "error", "message": f"{exc}"}
-        )
+        ) from exc
 
 
 app.include_router(template_router)
@@ -381,7 +381,7 @@ def deploy_template_contract(
         template_path = os.path.join("../templates/", template_name)
         contract_path = os.path.join("../contracts/", contract_path)
         if not os.path.exists(template_path):
-            return HTTPException(
+            raise HTTPException(
                 status_code=500,
                 detail={
                     "status": "error",
@@ -419,25 +419,25 @@ def deploy_template_contract(
             return contract_json
         except Exception as exc:
             contract_proj.close()
-            return HTTPException(
+            raise HTTPException(
                 status_code=500, detail={"status": "error", "message": f"{str(exc)}"}
-            )
+            ) from exc
     except KeyError as exc:
-        return HTTPException(
+        raise HTTPException(
             status_code=500,
             detail={
                 "status": "error",
                 "message": f"Please make sure that the contract name and token name are same! KeyError: {str(exc)}",
             },
-        )
+        ) from exc
     except ValidationError as exc:
-        return HTTPException(
+        raise HTTPException(
             status_code=500, detail={"status": "error", "message": f"{exc}"}
-        )
+        ) from exc
     except Exception as exc:
-        return HTTPException(
+        raise HTTPException(
             status_code=500, detail={"status": "error", "message": str(exc)}
-        )
+        ) from exc
 
 
 app.include_router(deployment_router)
@@ -494,9 +494,9 @@ def interact_contract(
                 result = func.call(*method_args, {"from": ACTIVEACCOUNT.account})
                 return {"status": "ok", "result": result}
             except Exception as exc:
-                return HTTPException(
+                raise HTTPException(
                     status_code=500, detail={"status": "error", "message": str(exc)}
-                )
+                ) from exc
         elif interaction_type == "write":
             func_tx = func.transact(
                 *method_args,
@@ -509,14 +509,14 @@ def interact_contract(
                 "tx_status": func_tx.status,
             }
         else:
-            return HTTPException(
+            raise HTTPException(
                 status_code=500,
                 detail={"status": "error", "message": "Invalid interaction type!"},
             )
     except Exception as exc:
-        return HTTPException(
+        raise HTTPException(
             status_code=500, detail={"status": "error", "message": str(exc)}
-        )
+        ) from exc
 
 
 @contract_router.get("/interact/status")
@@ -554,9 +554,9 @@ def pm_delete(package_name: str):
         package_manager._delete(package_name)
         return {"status": "success", "message": f"{package_name} deleted successfully"}
     except Exception as exc:
-        return HTTPException(
+        raise HTTPException(
             status_code=500, detail={"status": "error", "message": str(exc)}
-        )
+        ) from exc
 
 
 @pm_router.post("/install")
@@ -577,9 +577,9 @@ def pm_install(package_name: str):
             "message": f"{package_name} installed successfully",
         }
     except Exception as exc:
-        return HTTPException(
+        raise HTTPException(
             status_code=500, detail={"status": "error", "message": str(exc)}
-        )
+        ) from exc
 
 
 app.include_router(pm_router)
