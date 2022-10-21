@@ -1,3 +1,10 @@
 .env
 poetry.lock
 Dockerfile
+build/
+reports/
+templates/*.sol
+contracts/*.sol
+.hypothesis/
+__pycache__
+.dockerignore

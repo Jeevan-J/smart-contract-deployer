@@ -192,7 +192,10 @@ def get_network_active():
     """
     if network.is_connected():
         return {"status": "ok", "network": network.show_active()}
-    return HTTPException(status_code=404, detail={"status": "error", "message": "Not connected to any network"})
+    return HTTPException(
+        status_code=404,
+        detail={"status": "error", "message": "Not connected to any network"},
+    )
 
 
 @network_router.get("/set")
@@ -259,9 +262,17 @@ def get_template_code(template_name: str):
                 "template_name": template_name,
                 "template_code": open(template_path, "r", encoding="utf-8").read(),
             }
-        return HTTPException(status_code=404, detail={"status": "error", "message": f'template "{template_name}" not found'})
+        return HTTPException(
+            status_code=404,
+            detail={
+                "status": "error",
+                "message": f'template "{template_name}" not found',
+            },
+        )
     except ValidationError as exc:
-        return HTTPException(status_code=500, detail={"status": "error", "message": f"{exc}"})
+        return HTTPException(
+            status_code=500, detail={"status": "error", "message": f"{exc}"}
+        )
 
 
 @template_router.post("/add")
@@ -282,15 +293,20 @@ def add_template(template_name: str, template_bytes: bytes = File(...)):
         validate_filename(template_name)
         template_path = os.path.join(CONTRACT_TEMPLATE_FOLDER, template_name)
         if os.path.exists(template_path):
-            return HTTPException(status_code=500, detail={
-                "status": "error",
-                "message": f'template "{template_name}" already exists',
-            })
+            return HTTPException(
+                status_code=500,
+                detail={
+                    "status": "error",
+                    "message": f'template "{template_name}" already exists',
+                },
+            )
         with open(template_path, "wb") as template_file:
             template_file.write(template_bytes)
         return {"status": "ok", "template_name": template_name}
     except ValidationError as exc:
-        return HTTPException(status_code=500, detail={"status": "error", "message": f"{exc}"})
+        return HTTPException(
+            status_code=500, detail={"status": "error", "message": f"{exc}"}
+        )
 
 
 @template_router.delete("/delete")
@@ -311,17 +327,24 @@ def delete_template(template_name: str):
         validate_filename(template_name)
         template_path = os.path.join(CONTRACT_TEMPLATE_FOLDER, template_name)
         if not os.path.exists(template_path):
-            return HTTPException(status_code=500, detail={
-                "status": "error",
-                "message": f'template "{template_name}" not found',
-            })
+            return HTTPException(
+                status_code=500,
+                detail={
+                    "status": "error",
+                    "message": f'template "{template_name}" not found',
+                },
+            )
         try:
             os.remove(template_path)
             return {"status": "ok", "template_name": template_name}
         except Exception as exc:
-            return HTTPException(status_code=500, detail={"status": "error", "message": str(exc)})
+            return HTTPException(
+                status_code=500, detail={"status": "error", "message": str(exc)}
+            )
     except ValidationError as exc:
-        return HTTPException(status_code=500, detail={"status": "error", "message": f"{exc}"})
+        return HTTPException(
+            status_code=500, detail={"status": "error", "message": f"{exc}"}
+        )
 
 
 app.include_router(template_router)
@@ -358,10 +381,13 @@ def deploy_template_contract(
         template_path = os.path.join("../templates/", template_name)
         contract_path = os.path.join("../contracts/", contract_path)
         if not os.path.exists(template_path):
-            return HTTPException(status_code=500, detail={
-                "status": "error",
-                "message": f"{template_name} template is not available!",
-            })
+            return HTTPException(
+                status_code=500,
+                detail={
+                    "status": "error",
+                    "message": f"{template_name} template is not available!",
+                },
+            )
         with open(template_path, "r", encoding="utf-8") as template:
             template_code = template.read()
             for key, value in template_params.items():
@@ -393,16 +419,25 @@ def deploy_template_contract(
             return contract_json
         except Exception as exc:
             contract_proj.close()
-            return HTTPException(status_code=500, detail={"status": "error","message": f"{str(exc)}"})
+            return HTTPException(
+                status_code=500, detail={"status": "error", "message": f"{str(exc)}"}
+            )
     except KeyError as exc:
-        return HTTPException(status_code=500, detail={
-            "status": "error",
-            "message": f"Please make sure that the contract name and token name are same! KeyError: {str(exc)}",
-        })
+        return HTTPException(
+            status_code=500,
+            detail={
+                "status": "error",
+                "message": f"Please make sure that the contract name and token name are same! KeyError: {str(exc)}",
+            },
+        )
     except ValidationError as exc:
-        return HTTPException(status_code=500, detail={"status": "error", "message": f"{exc}"})
+        return HTTPException(
+            status_code=500, detail={"status": "error", "message": f"{exc}"}
+        )
     except Exception as exc:
-        return HTTPException(status_code=500, detail={"status": "error", "message": str(exc)})
+        return HTTPException(
+            status_code=500, detail={"status": "error", "message": str(exc)}
+        )
 
 
 app.include_router(deployment_router)
@@ -426,7 +461,12 @@ def get_contracts():
 
 @contract_router.post("/interact")
 def interact_contract(
-    contract_name: str, contract_address: str, contract_method: str, method_args: tuple
+    contract_name: str,
+    contract_address: str,
+    contract_method: str,
+    method_args: tuple,
+    interaction_type: str,
+    required_confs: int = 0,
 ):
     """
     Interact with a Smart Contract using pre-defined ERC Templates
@@ -436,6 +476,8 @@ def interact_contract(
         contract_address (dict): deployed contract address
         contract_method (str): contract method
         method_args (tuple): contract method arguments
+        interaction_type (str): interaction type (read or write)
+        required_confs (int, optional): required confirmations. Defaults to 0.
 
     Returns:
         json: Returns a JSON with status and transaction information
@@ -447,15 +489,47 @@ def interact_contract(
         func = deployed_contract.get_method_object(
             deployed_contract.signatures[contract_method]
         )
-        func_tx = func.transact(*method_args, {"from": ACTIVEACCOUNT.account})
-        contract_proj.close()
-        return {
-            "status": "success",
-            "tx_hash": func_tx.txid,
-            "tx_status": func_tx.status,
-        }
+        if interaction_type == "read":
+            try:
+                result = func.call(*method_args, {"from": ACTIVEACCOUNT.account})
+                return {"status": "ok", "result": result}
+            except Exception as exc:
+                return HTTPException(
+                    status_code=500, detail={"status": "error", "message": str(exc)}
+                )
+        elif interaction_type == "write":
+            func_tx = func.transact(
+                *method_args,
+                {"from": ACTIVEACCOUNT.account, "required_confs": required_confs},
+            )
+            contract_proj.close()
+            return {
+                "status": "ok",
+                "tx_hash": func_tx.txid,
+                "tx_status": func_tx.status,
+            }
+        else:
+            return HTTPException(
+                status_code=500,
+                detail={"status": "error", "message": "Invalid interaction type!"},
+            )
     except Exception as exc:
-        return HTTPException(status_code=500, detail={"status": "error", "message": str(exc)})
+        return HTTPException(
+            status_code=500, detail={"status": "error", "message": str(exc)}
+        )
+
+
+@contract_router.get("/interact/status")
+def get_transact_status(
+    txid: str,
+):
+    """
+    Returns the status of transaction
+
+    Args:
+        txid (str): transaction id
+    """
+    return {"status": brownie.network.transaction.TransactionReceipt(txid).status.name}
 
 
 app.include_router(contract_router)
@@ -480,7 +554,9 @@ def pm_delete(package_name: str):
         package_manager._delete(package_name)
         return {"status": "success", "message": f"{package_name} deleted successfully"}
     except Exception as exc:
-        return HTTPException(status_code=500, detail={"status": "error", "message": str(exc)})
+        return HTTPException(
+            status_code=500, detail={"status": "error", "message": str(exc)}
+        )
 
 
 @pm_router.post("/install")
@@ -501,6 +577,9 @@ def pm_install(package_name: str):
             "message": f"{package_name} installed successfully",
         }
     except Exception as exc:
-        return HTTPException(status_code=500, detail={"status": "error", "message": str(exc)})
+        return HTTPException(
+            status_code=500, detail={"status": "error", "message": str(exc)}
+        )
+
 
 app.include_router(pm_router)
