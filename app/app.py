@@ -456,7 +456,9 @@ def get_contracts():
         list: contracts list
     """
     contract_proj = project.load("../")
-    return {"status": "ok", "contracts": list(contract_proj.keys())}
+    contracts = list(contract_proj.keys())
+    contract_proj.close()
+    return {"status": "ok", "contracts": contracts}
 
 
 @contract_router.post("/interact")
@@ -482,8 +484,8 @@ def interact_contract(
     Returns:
         json: Returns a JSON with status and transaction information
     """
+    contract_proj = project.load("../")
     try:
-        contract_proj = project.load("../")
         contract_container = contract_proj[contract_name]
         deployed_contract = contract_container.at(contract_address)
         func = deployed_contract.get_method_object(
@@ -492,8 +494,10 @@ def interact_contract(
         if interaction_type == "read":
             try:
                 result = func.call(*method_args, {"from": ACTIVEACCOUNT.account})
+                contract_proj.close()
                 return {"status": "ok", "result": result}
             except Exception as exc:
+                contract_proj.close()
                 raise HTTPException(
                     status_code=500, detail={"status": "error", "message": str(exc)}
                 ) from exc
@@ -509,11 +513,13 @@ def interact_contract(
                 "tx_status": func_tx.status,
             }
         else:
+            contract_proj.close()
             raise HTTPException(
                 status_code=500,
                 detail={"status": "error", "message": "Invalid interaction type!"},
             )
     except Exception as exc:
+        contract_proj.close()
         raise HTTPException(
             status_code=500, detail={"status": "error", "message": str(exc)}
         ) from exc
