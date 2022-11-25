@@ -395,8 +395,8 @@ def deploy_template_contract(
             with open(contract_path, "w+", encoding="utf-8") as contract_file:
                 contract_file.write(template_code)
         contract_proj = project.load("../")
-        contract_container = contract_proj[contract_name]
         try:
+            contract_container = contract_proj[contract_name]
             deployed_contract = contract_container.deploy(
                 {"from": ACTIVEACCOUNT.account}, publish_source=publish_source
             )
