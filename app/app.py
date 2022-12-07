@@ -432,7 +432,7 @@ def deploy_template_contract(
         ) from exc
     except ValidationError as exc:
         raise HTTPException(
-            status_code=500, detail={"status": "error", "message": f"{exc}"}
+            status_code=500, detail={"status": "error", "message": str(exc)}
         ) from exc
     except Exception as exc:
         raise HTTPException(
@@ -484,8 +484,8 @@ def interact_contract(
     Returns:
         json: Returns a JSON with status and transaction information
     """
-    contract_proj = project.load("../")
     try:
+        contract_proj = project.load("../")
         contract_container = contract_proj[contract_name]
         deployed_contract = contract_container.at(contract_address)
         func = deployed_contract.get_method_object(
@@ -581,6 +581,27 @@ def pm_install(package_name: str):
         return {
             "status": "success",
             "message": f"{package_name} installed successfully",
+        }
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500, detail={"status": "error", "message": str(exc)}
+        ) from exc
+        
+        
+@pm_router.post("/close_projects")
+def close_projects():
+    """
+    Close all loaded projects
+
+    Returns:
+        json: Returns a JSON with status
+    """
+    try:
+        for contract_proj in project.get_loaded_projects():
+            contract_proj.close()
+        return {
+            "status": "success",
+            "message": f"succesfully closed all projects",
         }
     except Exception as exc:
         raise HTTPException(
