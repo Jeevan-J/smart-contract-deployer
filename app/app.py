@@ -190,7 +190,7 @@ def get_network_active():
     Returns:
         json: JSON with active network if connected
     """
-    if network.is_connected():
+    if network.show_active():
         return {"status": "ok", "network": network.show_active()}
     raise HTTPException(
         status_code=404,
@@ -420,7 +420,8 @@ def deploy_template_contract(
         except Exception as exc:
             contract_proj.close()
             raise HTTPException(
-                status_code=500, detail={"status": "error", "message": f"{str(exc)}"}
+                status_code=500, detail={"status": "error", 
+                                         "message": f"Exception while loading/deploying the contract. {str(exc)}"}
             ) from exc
     except KeyError as exc:
         raise HTTPException(
@@ -432,7 +433,7 @@ def deploy_template_contract(
         ) from exc
     except ValidationError as exc:
         raise HTTPException(
-            status_code=500, detail={"status": "error", "message": str(exc)}
+            status_code=500, detail={"status": "error", "message": f"Validation error: {str(exc)}"}
         ) from exc
     except Exception as exc:
         raise HTTPException(
